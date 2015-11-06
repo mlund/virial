@@ -13,121 +13,141 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from math import sqrt, log, pi, exp
-from scipy.optimize import curve_fit
+import warnings
+from math import sqrt, log, pi, exp, fabs
+from scipy.optimize import curve_fit, OptimizeWarning
+from scipy.constants import N_A
 from sys import exit
 
 class PotentialBase(object):
   def __init__(self):
     self.popt = 0.0
     self.pcov = 0.0
+    self.shift = 0.0
+    self.range = []
+
+  def info(self):
+    print self.name+" fit:"
+    print "  Range          = ", self.range, "A"
+    print "  Fitted shift   = ", self.shift, "kT"
+    self.more()
 
   def fit(self, r, w):
-    self.popt, self.pcov = curve_fit( self.u, r, w, self.guess ) # fit data
-    return self.popt, self.pcov
+    self.range = [np.min(r), np.max(r)]
+    #warnings.simplefilter("error", OptimizeWarning)
+    try:
+      self.popt, self.pcov = curve_fit( self.u, r, w, self.guess ) # fit data
+    except:
+      pass
+    return self.popt
+
+  def eval(self, rmin, rmax=1e3, dr=0.5):
+    r = np.arange(rmin, rmax, dr)
+    w = self.u(r, *self.popt)
+    return r,w-self.shift
 
 class DebyeHuckelLimiting( PotentialBase ):
 
-  def __init__(self, guess, fitcharge=False, fitkappa=True):
+  def __init__(self, guess, fitcharge=False, fitkappa=True, lB=7.1):
+    self.name = "Debye-Huckel"
     self.guess = guess
     self.fitcharge = fitcharge
     self.fitkappa = fitkappa
+    self.lB=lB
 
-  def u( self, r, lB, QQ, D, shift ):
-    lB = self.guess[0]
-    if self.fitcharge == False:
-      QQ = self.guess[1]
-    if self.fitkappa == False:
-      D = self.guess[2]
-    return lB*QQ / r * np.exp(-r/D) + shift 
+  def u( self, r, QQ, D, shift ):
+    D=fabs(D)
+    if self.fitcharge is False:
+      QQ = self.guess[0]
+    if self.fitkappa is False:
+      D = self.guess[1]
+    self.shift = shift
+    return self.lB*QQ / r * np.exp(-r/D) + shift 
+
+  def more( self ):
+    print "  Bjerrum length = ", self.lB, " A"
+    print "  Debye length   = ", fabs(self.popt[1]), " A (fitted:", self.fitkappa, ")"
+    print "  Charge product = ", self.popt[0], " (fitted:", self.fitcharge, ")"
 
 class RadialDistributionFunction:
   def __init__(self, filename):
-    self.r, self.g = np.loadtxt(infile, usecols=(0,1), unpack=True)
+    self.r, self.g = np.loadtxt(filename, usecols=(0,1), unpack=True)
     self.w = -np.log(self.g)
 
   def slice(self, rmin, rmax):
     m = (self.r>=rmin) & (self.r<=rmax)
     return self.r[m], self.g[m]
 
-infile      = "gofr.dat"
-outfile     = "wofr.dat"
-rmin        = 2.0                 # fitting interval (min)
-rmax        = 3.00                # - / / - (max)
-lB          = 7.                  # bjerrum length
-Q           = [ -6.0, +6.8 ]      # charges of the g(r) particles
-Mw          = [ 14400., 14400 ]   # g/mol
-fit_debye   = True                # true if Debye length should be used to fit
-guess_D     = 30.                 # debye length starting point
-guess_shift = -2.0                # PMF shift starting point
-guess       = [ guess_D, guess_shift ]
+# If run as main program
 
-def f(r,D,shift):
-  global Q,lB
-  if (fit_debye==False):
-    D=guess_D
-  return lB*Q[0]*Q[1] / r * np.exp(-r/D) - shift
+if __name__ == "__main__":
+  import argparse
+  from sys import stdout
+  from argparse import RawTextHelpFormatter
 
+  ps = argparse.ArgumentParser(
+      description = 'Fit tail of RDFs to model pair potentials',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter )
+  ps.add_argument('-z', type=float, nargs=2, default=[0,0], metavar=('z1','z2'), help='valencies')
+  ps.add_argument('-a','--radii', type=float, nargs=2, default=[0,0], metavar=('a1','a2'), help='radii [angstrom]')
+  ps.add_argument('-mw', type=float, nargs=2, default=[0,0], metavar=('mw1','mw2'), help='mol. weights [g/mol]')
+  ps.add_argument('-lB','--bjerrum', type=float, default=7.1, metavar=('lB'), help='Bjerrum length [angstrom]')
+  ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
+  ps.add_argument('-m','--model', default='dh', choices=['dh','lj'], help='Model to fit')
+  ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
+  ps.add_argument('-nb','--nobob', action='store_true', help='replace tail w. model potential' )
+  ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
+      help='fitting range [angstrom]')
+  ps.add_argument('infile', type=str, help='input rdf' )
+  ps.add_argument('outfile', type=str, help='output potential of mean force' )
+  args = ps.parse_args()
 
-rdf = RadialDistributionFunction(infile)
+  rdf = RadialDistributionFunction( args.infile )
 
-r, g = rdf.slice(rmin, rmax)
+  # cut out range to fit
+  if args.range[1]<=args.range[0]:
+    args.range = min(rdf.r), max(rdf.r)
+  r,g = rdf.slice( *args.range )
 
-dh=DebyeHuckelLimiting( fitcharge=False, guess=[7.1, 2.0, 10, 0.0] )
+  # set up chosen fitting model
+  if args.model is 'dh':
+    guess = [ args.z[0]*args.z[1], args.debye, 0.0 ]
+    model = DebyeHuckelLimiting( fitcharge=False, guess=guess, lB=args.bjerrum )
 
-dh.fit( r, -np.log(g) )
+  # do the fitting and show info
+  model.fit( r, -np.log(g) )
+  model.info()
 
-exit(0)
+  # merge fitted data and calculated tail if needed
+  if args.nobob is True:
+    r, w = rdf.r, rdf.w - model.shift
+  else:
+    m = ( rdf.r<model.range[0] )                                   # points below rmin 
+    rd,wd = rdf.r[m], rdf.w[m]-model.shift                         # w(r) from data points
+    rm,wm = model.eval( rmin=model.range[0], rmax=model.range[1] ) # w(r) from model potential
+    r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm])
 
-popt, pcov = curve_fit(f, r[m], w[m], guess) # fit data
-debye = popt[0]                              # get fitted values
-shift = popt[1]                              # -//-
-rfit = r[m]                                  # r array in fitting interval
-wfit = f(rfit, *popt) + shift                # w array -//-
-w    = w + shift                             # shift PMF
-print "Loaded g(r) file      = ", infile
-print "Saved w(r) file       = ", outfile
-print "Particle charges      = ", Q
-print "Particle weights      = ", Mw, "g/mol"
-print "Fit range [rmin,rmax] = ", rmin, rmax
-print "Fitted Debye length   = ", debye, "A"
-print "Fitted ionic strength = ", (3.04/debye)**2*1000., "mM"
-print "Fitted shift          = ", shift, "kT"
+  # integrate to get virial coefficient
+  b2_hs  = 2*pi/3*min(r)**3          # zero -> contact assuming hard spheres
+  b2_dat = np.trapz( -2*pi*(np.exp(-w)-1)*r**2, r)
+  b2 = b2_hs+b2_dat
 
-#
-# 2ND VIRIAL COEFFICIENT
-#
-m      = (r<rmin)                    # slice out all data points below rmin 
-r_dat  = r[m]
-w_dat  = w[m]
-inte   = -2*pi*( np.exp( -w_dat ) - 1 ) * r_dat**2
-b2_dat = np.trapz(inte, r_dat)       # integrate data from contact -> rmin
+  print "\nVirial coefficient (cubic angstrom):"
+  print "  Hard sphere  [%5d:%5d] = " % ( 0, min(r) ), b2_hs
+  print "  Rest         [%5d:%5d] = " % ( min(r), max(r) ), b2_dat 
+  print "  TOTAL        [%5d:%5d] = " % ( 0, max(r) ), b2
+  if args.mw[0]>0 and args.mw[1]>0:
+    print "                             = ", b2*N_A*1e-24/args.mw[0]/args.mw[1], "ml*mol/g^2"
+  print "  Reduced, B2/B2_HS          = ", b2 / b2_hs
 
-infty=500.                           # assume pmf is ZERO after this point
-r_dh  = np.arange( rmin, infty, 0.5 )# generate r array for rmin -> "infinity"
-w_dh  = f(r_dh,debye,0)              # generate w array -//-
-inte  = -2*pi*(np.exp(-w_dh)- 1)*r_dh**2
-b2_dh = np.trapz(inte, r_dh )        # integrate using Debye-Huckel
-b2_hc = 2 * pi / 3 *r[0]**3          # zero -> contact assuming hard spheres
-b2_tot = b2_hc+b2_dat+b2_dh          # total B2 (A**3)
+  # plot fitted w(r)
+  if args.plot is True:
+    import matplotlib.pyplot as plt
+    plt.plot( rdf.r, rdf.w-model.shift )
+    m = (rm<max(rdf.r))
+    plt.plot( rm[m], wm[m] )
+    plt.show()
 
-print "Virial coefficient (cubic angstrom):"
-print "  Hard sphere  [%5d:%5d] = " % ( 0, r[0] ), b2_hc
-print "  Loaded data  [%5d:%5d] = " % ( r[0], rmin ), b2_dat 
-print "  Debye-Huckel [%5d:%5d] = " % ( rmin, infty ), b2_dh
-print "  TOTAL        [%5d:%5d] = " % ( 0, infty ), b2_tot
-print "                             = ", b2_tot*6.022e23*1e-23/Mw[0]/Mw[1], "ml*mol/g^2"
-print "  Reduced, B2/B2_HS          = ", b2_tot / b2_hc
-
-#
-# SAVE FINAL PMF TO DISK
-#
-r_final = np.concatenate( (r_dat, r_dh) )  # assemble data and DH r arrays
-w_final = np.concatenate( (w_dat, w_dh) )  #                - //- w arrays
-np.savetxt(outfile, np.transpose( (r_final,w_final) ) )
-
-plt.plot( r, w, "ro" )
-plt.plot( rfit, wfit, linewidth=2.0 )
-plt.xlabel("$\pi$")
-plt.show()
-
+  # save final pmf to disk
+  if args.outfile:
+    np.savetxt(args.outfile, np.transpose( (r,w, np.exp(-w)) ) )
