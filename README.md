@@ -1,6 +1,6 @@
 # virial.py
-Script to fit the tail of radial distribution functions to model potential and to calculate
-the resulting virial coefficients.
+Script to fit the tail of the radial distribution functions to a model potential and to calculate
+the resulting virial coefficient and/or Kirkwood-Buff integrals (todo).
 
 ## Usage
 
@@ -50,14 +50,14 @@ Model    | Description
 
 ## Example
 
-In this example we load a raw histogram for the distances between two charged particles, simulated in 3d, and:
+In this example we load a raw probability histogram for the distances between two monovalent particles, simulated in 3d, and:
 
-1. normalize by spherical volume element
-2. fit tail to Yukawa potential via the Debye length (we provide an initial guess of 30 Å) in 
+1. normalize by a spherical volume element.
+2. fit tail to Yukawa potential via the Debye length (we provide an initial guess of D=30 Å) in 
    the range 100-200 Å.
-3. normalize data and replace tail with fitted Yukawa potential
-4. integrate to get the osmotic second virial coefficient
-5. plot the result using `matplotlib`
+3. normalize data and replace tail with fitted Yukawa potential.
+4. integrate to get the osmotic second virial coefficient.
+5. plot the result using `matplotlib`.
 
 ~~~~
 virial.py --range 100 200 --model dh -z 1.0 1.0 --debye 30 --norm3d --plot gofr.dat wofr.dat
@@ -83,11 +83,8 @@ Virial coefficient (cubic angstrom):
 
 ![alt text](images/pmffit.png "Fitted potential of mean force")
 
-## Todo
-Implement Kirkwood-Buff integration.
-
 ## Credits
-Should you find this useful, we would greatly appreciate citation of the following paper,
+Should you find this useful, citation of the following paper is greatly appreciated,
 
 - Li et al, [J. Phys. Chem. B, 2015, 119:503-508](http://dx.doi.org/10.1021/jp512027j).
 
