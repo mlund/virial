@@ -1,20 +1,14 @@
-#
-# virial.py
-#
-# This script loads g(r) from disk, converts it to
-# free energy, w(r), then shifts it so that the tail
-# best fits a salt screened Debye-Huckel potential.
-# The PMF is integrated to give the 2nd virial
-# coefficient, B2.
-#
-# \author Mikael Lund
-# \date Lund, December 2010
-#
+#!/usr/bin/env python
+
+"""
+@date   november 2015, malmo
+@author m. lund
+"""
 
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
-from math import sqrt, log, pi, exp, fabs
+from math import sqrt, log, pi, exp, fabs, sinh
 from scipy.optimize import curve_fit, OptimizeWarning
 from scipy.constants import N_A
 from sys import exit
@@ -34,11 +28,7 @@ class PotentialBase(object):
 
   def fit(self, r, w):
     self.range = [np.min(r), np.max(r)]
-    #warnings.simplefilter("error", OptimizeWarning)
-    try:
-      self.popt, self.pcov = curve_fit( self.u, r, w, self.guess ) # fit data
-    except:
-      pass
+    self.popt, self.pcov = curve_fit( self.u, r, w, self.guess ) # fit data
     return self.popt
 
   def eval(self, rmin, rmax=1e3, dr=0.5):
@@ -46,28 +36,41 @@ class PotentialBase(object):
     w = self.u(r, *self.popt)
     return r,w-self.shift
 
+class Zero( PotentialBase ):
+  def __init__(self):
+    self.name="Zero"
+    self.guess=[0]
+  def u(self, r, shift):
+    self.shift=shift
+    return r*0 + shift
+  def more(self): pass
+
 class DebyeHuckelLimiting( PotentialBase ):
 
-  def __init__(self, guess, fitcharge=False, fitkappa=True, lB=7.1):
+  def __init__(self, guess, fitkappa=True, fitradii=False, lB=7.1):
     self.name = "Debye-Huckel"
     self.guess = guess
-    self.fitcharge = fitcharge
     self.fitkappa = fitkappa
+    self.fitradii = fitradii
     self.lB=lB
 
-  def u( self, r, QQ, D, shift ):
+  def u( self, r, QQ, D, a, shift ):
     D=fabs(D)
-    if self.fitcharge is False:
-      QQ = self.guess[0]
+    QQ = self.guess[0]
+    if self.fitradii:
+      a=fabs(a)
+      if (a==0): a=1e-10
+      QQ = (sinh(a/D) / (a/D))**2 * QQ
     if self.fitkappa is False:
       D = self.guess[1]
     self.shift = shift
     return self.lB*QQ / r * np.exp(-r/D) + shift 
 
   def more( self ):
-    print "  Bjerrum length = ", self.lB, " A"
-    print "  Debye length   = ", fabs(self.popt[1]), " A (fitted:", self.fitkappa, ")"
-    print "  Charge product = ", self.popt[0], " (fitted:", self.fitcharge, ")"
+    print "  Bjerrum length = ", self.lB, "A"
+    print "  Debye length   = ", fabs(self.popt[1]), "A (fitted:", self.fitkappa, ")"
+    print "  Charge product = ", self.popt[0]
+    print "  Radius         = ", fabs(self.popt[2]), "A (fitted:", self.fitradii, ")"
 
 class RadialDistributionFunction:
   def __init__(self, filename):
@@ -93,11 +96,12 @@ if __name__ == "__main__":
   ps.add_argument('-mw', type=float, nargs=2, default=[0,0], metavar=('mw1','mw2'), help='mol. weights [g/mol]')
   ps.add_argument('-lB','--bjerrum', type=float, default=7.1, metavar=('lB'), help='Bjerrum length [angstrom]')
   ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
-  ps.add_argument('-m','--model', default='dh', choices=['dh','lj'], help='Model to fit')
+  ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
   ps.add_argument('-nb','--nobob', action='store_true', help='replace tail w. model potential' )
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
+  ps.add_argument('--fitradii', dest='fitradii', action='store_true')
   ps.add_argument('infile', type=str, help='input rdf' )
   ps.add_argument('outfile', type=str, help='output potential of mean force' )
   args = ps.parse_args()
@@ -110,9 +114,13 @@ if __name__ == "__main__":
   r,g = rdf.slice( *args.range )
 
   # set up chosen fitting model
-  if args.model is 'dh':
-    guess = [ args.z[0]*args.z[1], args.debye, 0.0 ]
-    model = DebyeHuckelLimiting( fitcharge=False, guess=guess, lB=args.bjerrum )
+  if args.model=='dh':
+    a = (args.radii[0]+args.radii[1]) / 2.0
+    guess = [ args.z[0]*args.z[1], args.debye, a, 0.0 ]
+    model = DebyeHuckelLimiting(
+        fitradii=args.fitradii, guess=guess, lB=args.bjerrum )
+  if args.model=='zero':
+    model = Zero()
 
   # do the fitting and show info
   model.fit( r, -np.log(g) )
