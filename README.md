@@ -3,7 +3,7 @@ Script to fit the tail of radial distribution functions to model potential and t
 the resulting virial coefficients.
 
 # Usage
-All options can be viewed from the command line by typing 'virial.py -h' which will give something like this,
+All options can be viewed from the command line by typing `virial.py -h` which will give something like this,
 ~~~~
 usage: virial.py [-h] [-z z1 z2] [-a a1 a2] [-mw mw1 mw2] [-lB lB] [-D D]
                  [-m {dh,zero}] [-p] [-nb] [--norm3d] [-r min max]
@@ -35,6 +35,9 @@ optional arguments:
                         fitting range [angstrom] (default: [0, 0])
   --fitradii            fit radius via sinh(ka)/ka (default: False)
 ~~~~
+
+# Requirements
+`numpy`, `scipy`, and `matplotlib`.
 
 # Example
 
