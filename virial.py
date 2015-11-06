@@ -98,10 +98,10 @@ if __name__ == "__main__":
   ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
   ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
-  ps.add_argument('-nb','--nobob', action='store_true', help='replace tail w. model potential' )
+  ps.add_argument('-nb','--nobob', action='store_true', help='do not replace tail w. model potential' )
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
-  ps.add_argument('--fitradii', dest='fitradii', action='store_true')
+  ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
   ps.add_argument('infile', type=str, help='input rdf' )
   ps.add_argument('outfile', type=str, help='output potential of mean force' )
   args = ps.parse_args()
