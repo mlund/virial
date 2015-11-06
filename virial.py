@@ -82,8 +82,8 @@ class RadialDistributionFunction:
     m = (self.r>=rmin) & (self.r<=rmax)
     return self.r[m], self.g[m]
 
-  def norm3d(self):
-    self.g = self.g / self.r**2
+  def normalizeVolume(self,dim):
+    self.g = self.g / self.r**(dim-1)
     self.w = -np.log(self.g)
 
 def VirialCoefficient(r, w, mw):
@@ -114,8 +114,10 @@ if __name__ == "__main__":
   ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
   ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
-  ps.add_argument('-so','--shiftonly', action='store_true', help='do not replace tail w. model potential' )
-  ps.add_argument('--norm3d', action='store_true', help='normalize with spherical volume element')
+  ps.add_argument('-so','--shiftonly', action='store_true',
+      help='do not replace tail w. model potential' )
+  ps.add_argument('--norm', choices=['none','cylinder', 'sphere'], default='none',
+      help='normalize w. volume element')
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
   ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
@@ -130,7 +132,10 @@ if __name__ == "__main__":
   rdf = RadialDistributionFunction( args.infile )
 
   # normalize with spherical volume element?
-  if args.norm3d: rdf.norm3d()
+  if args.norm=='cylinder':
+    rdf.normalizeVolume(2)
+  if args.norm=='sphere':
+    rdf.normalizeVolume(3)
 
   # cut out range to fit
   if args.range[1]<=args.range[0]:
