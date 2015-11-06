@@ -37,13 +37,20 @@ optional arguments:
   --fitradii            fit radius via sinh(ka)/ka (default: False)
 ~~~~
 
+## Fitting Models
+
+Model    | Description
+-------  | ----------------------
+`dh`     |  Debye-Huckel or Yukawa potential with an exponential decay.
+`zero`   |  Tail of w(r) is simply fitted to zero
+
 ## Requirements
 
-`numpy`, `scipy`, and `matplotlib`.
+`numpy`, `scipy`, `matplotlib`.
 
 ## Example
 
-In this example we load a raw histogram for the distances between two particles, simulated in 3d,
+In this example we load a raw histogram for the distances between two particles, simulated in 3d, and:
 
 1. normalize by spherical volume element
 2. fit tail to Yokawa potential via the Debye length (we provide an initial guess of 30 angstrom)
@@ -74,3 +81,9 @@ Virial coefficient (cubic angstrom):
 ~~~~
 
 ![alt text](images/pmffit.png "Fitted potential of mean force")
+
+## Todo
+Implement Kirkwood-Buff integration
+
+## Contact
+mikael.lund at teokem.lu.se
