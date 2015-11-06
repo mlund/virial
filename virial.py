@@ -169,6 +169,8 @@ if __name__ == "__main__":
   # plot fitted w(r)
   if args.plot is True:
     import matplotlib.pyplot as plt
+    plt.xlabel('$r$', fontsize=24)
+    plt.ylabel('$\\beta w(r) = -\\ln g(r)$', fontsize=24)
     plt.plot( rdf.r, rdf.w-model.shift, 'r.' )
     #m = (rm<max(rdf.r))
     #plt.plot( rm[m], wm[m], 'r--', linewidth=4 )
