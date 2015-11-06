@@ -1,10 +1,10 @@
 # virial.py
-Script to fit the tail of the radial distribution functions to a model potential and to calculate
+Script to fit the tail of radial distribution functions to arbitrary model potentials and to calculate
 the resulting virial coefficient and/or Kirkwood-Buff integrals (todo).
 
 ## Usage
 
-All options can be viewed from the command line by typing `virial.py -h` which will give something like this,
+All options can be viewed from the command line by typing `virial.py -h`:
 
 ~~~~
 usage: virial.py [-h] [-z z1 z2] [-a a1 a2] [-mw mw1 mw2] [-lB lB] [-D D]
@@ -15,8 +15,8 @@ usage: virial.py [-h] [-z z1 z2] [-a a1 a2] [-mw mw1 mw2] [-lB lB] [-D D]
 Fit tail of RDFs to model pair potentials
 
 positional arguments:
-  infile                input rdf
-  outfile               output potential of mean force
+  infile                two column input file with radial distribution function, g(r)
+  outfile               three column output with manipulated r, w(r), g(r)
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -86,7 +86,7 @@ Virial coefficient (cubic angstrom):
 ![alt text](images/pmffit.png "Fitted potential of mean force")
 
 ## Credits
-Should you find this useful, citation of the following paper is greatly appreciated,
+Should you find this useful, citation of the following explanatory paper is greatly appreciated,
 
 - Li et al., [J. Phys. Chem. B, 2015, 119:503-508](http://dx.doi.org/10.1021/jp512027j).
 
