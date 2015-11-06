@@ -8,6 +8,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
+import os
 from math import sqrt, log, pi, exp, fabs, sinh
 from scipy.optimize import curve_fit, OptimizeWarning
 from scipy.constants import N_A
@@ -47,10 +48,10 @@ class Zero( PotentialBase ):
 
 class DebyeHuckelLimiting( PotentialBase ):
 
-  def __init__(self, guess, fitkappa=True, fitradii=False, lB=7.1):
+  def __init__(self, guess, fitdebye=True, fitradii=False, lB=7.1):
     self.name = "Debye-Huckel"
     self.guess = guess
-    self.fitkappa = fitkappa
+    self.fitdebye = fitdebye
     self.fitradii = fitradii
     self.lB=lB
 
@@ -61,14 +62,14 @@ class DebyeHuckelLimiting( PotentialBase ):
       a=fabs(a)
       if (a==0): a=1e-10
       QQ = (sinh(a/D) / (a/D))**2 * QQ
-    if self.fitkappa is False:
+    if self.fitdebye is False:
       D = self.guess[1]
     self.shift = shift
     return self.lB*QQ / r * np.exp(-r/D) + shift 
 
   def more( self ):
     print "  Bjerrum length = ", self.lB, "A"
-    print "  Debye length   = ", fabs(self.popt[1]), "A (fitted:", self.fitkappa, ")"
+    print "  Debye length   = ", fabs(self.popt[1]), "A (fitted:", self.fitdebye, ")"
     print "  Charge product = ", self.popt[0]
     print "  Radius         = ", fabs(self.popt[2]), "A (fitted:", self.fitradii, ")"
 
@@ -84,6 +85,17 @@ class RadialDistributionFunction:
   def norm3d(self):
     self.g = self.g / self.r**2
     self.w = -np.log(self.g)
+
+def VirialCoefficient(r, w, mw):
+  b2={}
+  b2['hs'] = 2*pi/3*min(r)**3          # zero -> contact assuming hard spheres
+  b2['tot'] = b2['hs'] + np.trapz( -2*pi*(np.exp(-w)-1)*r**2, r)
+  b2['reduced'] = b2['tot'] / b2['hs']
+  b2['hsrange'] = [0,min(r)]
+  b2['range'] = [0,max(r)]
+  if mw[0]>0 and mw[1]>0:
+    b2['mlmol/g2'] = b2['tot']*N_A*1e-24/mw[0]/mw[1]
+  return b2
 
 # If run as main program
 
@@ -102,14 +114,18 @@ if __name__ == "__main__":
   ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
   ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
-  ps.add_argument('-nb','--nobob', action='store_true', help='do not replace tail w. model potential' )
+  ps.add_argument('-so','--shiftonly', action='store_true', help='do not replace tail w. model potential' )
   ps.add_argument('--norm3d', action='store_true', help='normalize with spherical volume element')
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
   ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
+  ps.add_argument('--no-fitdebye', dest='fitdebye', action='store_false', help='fit debye length')
   ps.add_argument('infile', type=str, help='input rdf' )
   ps.add_argument('outfile', type=str, help='output potential of mean force' )
   args = ps.parse_args()
+  
+  if not os.path.isfile( args.infile ):
+    sys.exit( "Error: File "+args.infile+" does not exist." )
 
   rdf = RadialDistributionFunction( args.infile )
 
@@ -126,7 +142,7 @@ if __name__ == "__main__":
     a = (args.radii[0]+args.radii[1]) / 2.0
     guess = [ args.z[0]*args.z[1], args.debye, a, 0.0 ]
     model = DebyeHuckelLimiting(
-        fitradii=args.fitradii, guess=guess, lB=args.bjerrum )
+        fitradii=args.fitradii, fitdebye=args.fitdebye, guess=guess, lB=args.bjerrum )
   if args.model=='zero':
     model = Zero()
 
@@ -135,33 +151,28 @@ if __name__ == "__main__":
   model.info()
 
   # merge fitted data and calculated tail if needed
-  if args.nobob is True:
+  if args.shiftonly is True:
     r, w = rdf.r, rdf.w - model.shift
   else:
     m = ( rdf.r<model.range[0] )                                   # points below rmin 
     rd,wd = rdf.r[m], rdf.w[m]-model.shift                         # w(r) from data points
-    rm,wm = model.eval( rmin=model.range[0], rmax=model.range[1] ) # w(r) from model potential
+    rm,wm = model.eval( rmin=model.range[0], rmax=2*model.range[1] ) # w(r) from model potential
     r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm])
 
-  # integrate to get virial coefficient
-  b2_hs  = 2*pi/3*min(r)**3          # zero -> contact assuming hard spheres
-  b2_dat = np.trapz( -2*pi*(np.exp(-w)-1)*r**2, r)
-  b2 = b2_hs+b2_dat
-
-  print "\nVirial coefficient (cubic angstrom):"
-  print "  Hard sphere  [%5d:%5d] = " % ( 0, min(r) ), b2_hs
-  print "  Rest         [%5d:%5d] = " % ( min(r), max(r) ), b2_dat 
-  print "  TOTAL        [%5d:%5d] = " % ( 0, max(r) ), b2
-  if args.mw[0]>0 and args.mw[1]>0:
-    print "                             = ", b2*N_A*1e-24/args.mw[0]/args.mw[1], "ml*mol/g^2"
-  print "  Reduced, B2/B2_HS          = ", b2 / b2_hs
+  # calc. virial coefficient
+  B2 = VirialCoefficient( r, w, args.mw )
+  print
+  print '  B2hs = ', B2['hs'], 'A3 (', B2['hsrange'], ')'
+  print '  B2   = ', B2['tot'], 'A3 =', B2.get('mlmol/g2', 'NaN'), 'mlmol/g2', ' (', B2['range'], ')'
+  print '  B2*  = ', B2['reduced']
 
   # plot fitted w(r)
   if args.plot is True:
     import matplotlib.pyplot as plt
-    plt.plot( rdf.r, rdf.w-model.shift )
-    m = (rm<max(rdf.r))
-    plt.plot( rm[m], wm[m] )
+    plt.plot( rdf.r, rdf.w-model.shift, 'r.' )
+    #m = (rm<max(rdf.r))
+    #plt.plot( rm[m], wm[m], 'r--', linewidth=4 )
+    plt.plot( r, w, 'g-' )
     plt.show()
 
   # save final pmf to disk
