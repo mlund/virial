@@ -50,11 +50,12 @@ Model    | Description
 
 ## Example
 
-In this example we load a raw histogram for the distances between two particles, simulated in 3d, and:
+In this example we load a raw histogram for the distances between two charged particles, simulated in 3d, and:
 
 1. normalize by spherical volume element
-2. fit tail to Yokawa potential via the Debye length (we provide an initial guess of 30 angstrom)
-3. normalize data and replace tail with fitted Yokawa potential
+2. fit tail to Yukawa potential via the Debye length (we provide an initial guess of 30 Å) in 
+   the range 100-200 Å.
+3. normalize data and replace tail with fitted Yukawa potential
 4. integrate to get the osmotic second virial coefficient
 5. plot the result using `matplotlib`
 
@@ -83,7 +84,7 @@ Virial coefficient (cubic angstrom):
 ![alt text](images/pmffit.png "Fitted potential of mean force")
 
 ## Todo
-Implement Kirkwood-Buff integration
+Implement Kirkwood-Buff integration.
 
 ## Contact
-mikael.lund at teokem.lu.se
+mikael dot lund at teokem dot lu dot se
