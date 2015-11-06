@@ -86,5 +86,9 @@ Virial coefficient (cubic angstrom):
 ## Todo
 Implement Kirkwood-Buff integration.
 
-## Contact
-mikael dot lund at teokem dot lu dot se
+## Credits
+Should you find this useful, we would greatly appreciate citation of the following paper,
+
+- Li et al, [J. Phys. Chem. B, 2015, 119:503-508](http://dx.doi.org/10.1021/jp512027j).
+
+Thanks!
