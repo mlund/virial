@@ -43,10 +43,13 @@ optional arguments:
 
 ## Example
 
-Take raw histogram for the distribution of distances betwee two particles, sampled in 3d
-space. Firstly the data is normalized by a spherical volume element, whereafter
-the tail is replaced by a fitted Yukawa potential. The resulting potential
-of mean force is saved to 'wofr.dat' and plotted using matplotlib:
+In this example we load a raw histogram for the distances between two particles, simulated in 3d,
+
+1. normalize by spherical volume element
+2. fit tail to Yokawa potential via the Debye length (we provide an initial guess of 30 angstrom)
+3. normalize data and replace tail with fitted Yokawa potential
+4. integrate to get the osmotic second virial coefficient
+5. plot the result using `matplotlib`
 
 ~~~~
 virial.py --range 100 200 --model dh -z 1.0 1.0 --debye 30 --norm3d --plot gofr.dat wofr.dat
@@ -69,3 +72,5 @@ Virial coefficient (cubic angstrom):
   TOTAL        [    0:  199] =  230168.854114
   Reduced, B2/B2_HS          =  879.180261075
 ~~~~
+
+![alt text](images/pmffit.png "Fitted potential of mean force")
