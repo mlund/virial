@@ -81,6 +81,10 @@ class RadialDistributionFunction:
     m = (self.r>=rmin) & (self.r<=rmax)
     return self.r[m], self.g[m]
 
+  def norm3d(self):
+    self.g = self.g / self.r**2
+    self.w = -np.log(self.g)
+
 # If run as main program
 
 if __name__ == "__main__":
@@ -99,6 +103,7 @@ if __name__ == "__main__":
   ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
   ps.add_argument('-nb','--nobob', action='store_true', help='do not replace tail w. model potential' )
+  ps.add_argument('--norm3d', action='store_true', help='normalize with spherical volume element')
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
   ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
@@ -107,6 +112,9 @@ if __name__ == "__main__":
   args = ps.parse_args()
 
   rdf = RadialDistributionFunction( args.infile )
+
+  # normalize with spherical volume element?
+  if args.norm3d: rdf.norm3d()
 
   # cut out range to fit
   if args.range[1]<=args.range[0]:
