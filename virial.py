@@ -122,8 +122,8 @@ if __name__ == "__main__":
       help='fitting range [angstrom]')
   ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
   ps.add_argument('--no-fitdebye', dest='fitdebye', action='store_false', help='fit debye length')
-  ps.add_argument('infile', type=str, help='input rdf' )
-  ps.add_argument('outfile', type=str, help='output potential of mean force' )
+  ps.add_argument('infile', type=str, help='two column input file with radial distribution function, g(r)' )
+  ps.add_argument('outfile', type=str, help='three column output with manipulated r, w(r), g(r)' )
   args = ps.parse_args()
   
   if not os.path.isfile( args.infile ):
@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
   rdf = RadialDistributionFunction( args.infile )
 
-  # normalize with spherical volume element?
+  # normalize with volume element?
   if args.norm=='cylinder':
     rdf.normalizeVolume(2)
   if args.norm=='sphere':
@@ -151,7 +151,7 @@ if __name__ == "__main__":
   if args.model=='zero':
     model = Zero()
 
-  # do the fitting and show info
+  # fit and show info
   model.fit( r, -np.log(g) )
   model.info()
 
@@ -159,26 +159,24 @@ if __name__ == "__main__":
   if args.shiftonly is True:
     r, w = rdf.r, rdf.w - model.shift
   else:
-    m = ( rdf.r<model.range[0] )                                   # points below rmin 
-    rd,wd = rdf.r[m], rdf.w[m]-model.shift                         # w(r) from data points
+    m = ( rdf.r<model.range[0] )                                     # points below rmin 
+    rd,wd = rdf.r[m], rdf.w[m]-model.shift                           # w(r) from data points
     rm,wm = model.eval( rmin=model.range[0], rmax=2*model.range[1] ) # w(r) from model potential
     r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm])
 
-  # calc. virial coefficient
+  # virial coefficient
   B2 = VirialCoefficient( r, w, args.mw )
   print
   print '  B2hs = ', B2['hs'], 'A3 (', B2['hsrange'], ')'
   print '  B2   = ', B2['tot'], 'A3 =', B2.get('mlmol/g2', 'NaN'), 'mlmol/g2', ' (', B2['range'], ')'
   print '  B2*  = ', B2['reduced']
 
-  # plot fitted w(r)
+  # plot final w(r)
   if args.plot is True:
     import matplotlib.pyplot as plt
     plt.xlabel('$r$', fontsize=24)
     plt.ylabel('$\\beta w(r) = -\\ln g(r)$', fontsize=24)
     plt.plot( rdf.r, rdf.w-model.shift, 'r.' )
-    #m = (rm<max(rdf.r))
-    #plt.plot( rm[m], wm[m], 'r--', linewidth=4 )
     plt.plot( r, w, 'g-' )
     plt.show()
 
