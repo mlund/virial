@@ -48,6 +48,7 @@ if __name__ == "__main__":
   ps = argparse.ArgumentParser(
       description = 'Fit tail of RDFs to model pair potentials',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter )
+  ps.add_argument('-nm', action='store_true', help='assume distance in infile is in nanometers')
   ps.add_argument('-z', type=float, nargs=2, default=[0,0], metavar=('z1','z2'), help='valencies')
   ps.add_argument('-a','--radii', type=float, nargs=2, default=[0,0], metavar=('a1','a2'), help='radii [angstrom]')
   ps.add_argument('-mw', type=float, nargs=2, default=[0,0], metavar=('mw1','mw2'), help='mol. weights [g/mol]')
@@ -55,7 +56,7 @@ if __name__ == "__main__":
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
   ps.add_argument('-so','--shiftonly', action='store_true',
       help='do not replace tail w. model potential' )
-  ps.add_argument('--norm', choices=['none','2d', '3d'], default='none',
+  ps.add_argument('--norm', choices=['no','2d', '3d'], default='no',
       help='normalize w. volume element')
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
@@ -79,68 +80,57 @@ if __name__ == "__main__":
       'zero'   : [ 'r*0 + a[0]', [0] ]
       }
 
-  # print predefined potentials and quit
   if args.potlist==True:
     print "pre-defined pair-potentials:"
     for key, val in potentiallist.iteritems():
       print "%10s = %s" % (key,val[0])
     exit(0)
 
-  # does the given pair-potential exist?
   if args.pot in potentiallist.keys():
     args.guess = potentiallist[args.pot][1]
     args.pot   = potentiallist[args.pot][0]
 
-  # this is the pair-potential function used for fitting
-  def pot(r, *a):
-    exec 'ret='+args.pot
-    return ret
+  exec 'def pot(r,*a): return '+args.pot # create pairpot function
 
-  # load g(r)
+  # load g(r) from disk
   if not os.path.isfile( args.infile ):
     sys.exit( "Error: File "+args.infile+" does not exist." )
   rdf = RadialDistributionFunction( args.infile )
 
-  # normalize with volume element?
-  if args.norm=='2d':
-    rdf.normalizeVolume(2)
-  if args.norm=='3d':
-    rdf.normalizeVolume(3)
+  # convert to angstrom / normalize volume
+  if args.nm == True: rdf.r = 10*rdf.r
+  if args.norm=='2d': rdf.normalizeVolume(2)
+  if args.norm=='3d': rdf.normalizeVolume(3)
 
-  # cut out range to fit
+  # cut out range and fit
   if args.range[1]<=args.range[0]:
     args.range = min(rdf.r), max(rdf.r)
-  r,g = rdf.slice( *args.range )
-
-  # fit pair-potential to data
-  a = curve_fit( pot, r, -np.log(g), args.guess )[0] # fit data
+  r, g = rdf.slice( *args.range )
+  a = curve_fit( pot, r, -np.log(g), args.guess )[0]
   print "model potential:"
   print "  w(r)/kT =", args.pot
   print "        a =", a
   shift = a[-1]  # last element is always the shift
 
   # merge fitted data and calculated tail if needed
-  if args.shiftonly is True:
+  if args.shiftonly == True:
     r, w = rdf.r, rdf.w - shift
   else:
-    m = ( rdf.r<=args.range[0] )      # points below rmin 
-    rd = rdf.r[m]
-    wd = rdf.w[m]-shift              # w(r) from data points
-
-    rm = np.arange( args.range[0], 4*args.range[1], rd[1]-rd[0] )
-    wm = pot(rm, *a) - shift
-
-    r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm]) # final w(r)
+    dr = rdf.r[1]-rdf.r[0]           # data point separation in r
+    shead = ( rdf.r<=args.range[0] ) # slice for data points < rmin
+    rtail = np.arange( args.range[0], 4*args.range[1], dr ) # model pot > rmin
+    r = np.concatenate( [ rdf.r[shead], rtail ] )
+    w = np.concatenate( [ rdf.w[shead], pot(rtail,*a) ] ) - shift
     
   # virial coefficient
   B2 = VirialCoefficient( r, w, args.mw )
   print '\nvirial coefficient:'
   print '  B2hs = ', B2['hs'], 'A3 (', B2['hsrange'], ')'
-  print '  B2   = ', B2['tot'], 'A3 =', B2.get('mlmol/g2', 'NaN'), 'mlmol/g2', ' (', B2['range'], ')'
+  print '  B2   = ', B2['tot'], 'A3 =', B2.get('mlmol/g2', 'NaN'), 'ml*mol/g2', ' (', B2['range'], ')'
   print '  B2*  = ', B2['reduced']
 
   # plot final w(r)
-  if args.plot is True:
+  if args.plot == True:
     import matplotlib.pyplot as plt
     plt.xlabel('$r$', fontsize=24)
     plt.ylabel('$\\beta w(r) = -\\ln g(r)$', fontsize=24)
