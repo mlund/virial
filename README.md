@@ -53,7 +53,7 @@ In this example we load a raw probability histogram, `gofr.dat` for the distance
 3. normalize data and replace tail with fitted Yukawa potential,
 4. integrate to get the osmotic second virial coefficient,
 5. plot the result using `matplotlib`.
-6. save the resulting potential of mean force, `wofr.dat`, which should smoothly go to zero for long distances
+6. save the resulting potential of mean force to the file `wofr.dat`.
 
 ~~~~
 virial.py gofr.dat wofr.dat --pot dh --guess 30 0 -z 1 1 --range 100 200 --norm 3d --plot
@@ -75,8 +75,8 @@ virial coefficient:
 ![alt text](images/pmffit.png "Fitted potential of mean force")
 
 ## Credits
-Should you find this useful, citation of the following explanatory paper is greatly appreciated,
+Should you find this useful, citation of the following work is greatly appreciated,
 
-- Li et al., [J. Phys. Chem. B, 2015, 119:503-508](http://dx.doi.org/10.1021/jp512027j).
+- Li et al., [*J. Phys. Chem. B, 2015, 119:503-508*](http://dx.doi.org/10.1021/jp512027j).
 
 Thanks!
