@@ -45,7 +45,7 @@ optional arguments:
 
 ## Example
 
-In this example we load a raw probability histogram for the distances between two monovalent particles, simulated in 3d, and:
+In this example we load a raw probability histogram, `gofr.dat` for the distances between two monovalent particles, simulated in 3d, and:
 
 1. normalize by a spherical volume element,
 2. fit tail to Yukawa potential via the Debye length (we provide an initial guess of D=30 Å) in 
@@ -53,12 +53,13 @@ In this example we load a raw probability histogram for the distances between tw
 3. normalize data and replace tail with fitted Yukawa potential,
 4. integrate to get the osmotic second virial coefficient,
 5. plot the result using `matplotlib`.
+6. save the resulting potential of mean force, `wofr.dat`, which should smoothly go to zero for long distances
 
 ~~~~
 virial.py gofr.dat wofr.dat --pot dh --guess 30 0 -z 1 1 --range 100 200 --norm 3d --plot
 ~~~~
 
-The resulting output will look something like this,
+The output will look something like this,
 
 ~~~~
 model potential:
