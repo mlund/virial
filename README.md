@@ -7,15 +7,16 @@ the resulting virial coefficient and/or Kirkwood-Buff integrals (todo).
 All options can be viewed from the command line by typing `virial.py -h`:
 
 ~~~~
-usage: virial.py [-h] [-z z1 z2] [-a a1 a2] [-mw mw1 mw2] [-lB lB] [-D D]
-                 [-m {dh,zero}] [-p] [-so] [--norm {none,cylinder,sphere}]
-                 [-r min max] [--fitradii] [--no-fitdebye]
+usage: virial.py [-h] [-z z1 z2] [-a a1 a2] [-mw mw1 mw2] [-lB lB] [-p] [-so]
+                 [--norm {none,2d,3d}] [-r min max] [--pot POT]
+                 [--guess GUESS [GUESS ...]] [--potlist]
                  infile outfile
 
 Fit tail of RDFs to model pair potentials
 
 positional arguments:
-  infile                two column input file with radial distribution function, g(r)
+  infile                two column input file with radial distribution
+                        function, g(r)
   outfile               three column output with manipulated r, w(r), g(r)
 
 optional arguments:
@@ -25,26 +26,18 @@ optional arguments:
                         radii [angstrom] (default: [0, 0])
   -mw mw1 mw2           mol. weights [g/mol] (default: [0, 0])
   -lB lB, --bjerrum lB  Bjerrum length [angstrom] (default: 7.1)
-  -D D, --debye D       Debye length [angstrom] (default: 1e+20)
-  -m {dh,zero}, --model {dh,zero}
-                        Model to fit (default: dh)
   -p, --plot            plot fitted w(r) using matplotlib (default: False)
   -so, --shiftonly      do not replace tail w. model potential (default:
                         False)
-  --norm {none,cylinder,sphere}
-                        normalize w. volume element (default: none)
+  --norm {none,2d,3d}   normalize w. volume element (default: none)
   -r min max, --range min max
                         fitting range [angstrom] (default: [0, 0])
-  --fitradii            fit radius via sinh(ka)/ka (default: False)
-  --no-fitdebye         fit debye length (default: True)
+  --pot POT             pair-potential -- either from list or user-defined
+                        (default: None)
+  --guess GUESS [GUESS ...]
+                        initial guess for fitting parameters (default: None)
+  --potlist             show built-in potentials and quit (default: False)
 ~~~~
-
-## Fitting Models
-
-Model    | Description
--------  | ----------------------
-`dh`     |  Debye-Huckel or Yukawa potential with an exponential decay.
-`zero`   |  Tail of w(r) is simply fitted to zero
 
 ## Requirements
 
@@ -62,25 +55,20 @@ In this example we load a raw probability histogram for the distances between tw
 5. plot the result using `matplotlib`.
 
 ~~~~
-virial.py --range 100 200 --model dh -z 1.0 1.0 --debye 30 --norm sphere --plot gofr.dat wofr.dat
+virial.py gofr.dat wofr.dat --pot dh --guess 30 0 -z 1 1 --range 100 200 --norm 3d --plot
 ~~~~
 
 The resulting output will look something like this,
 
 ~~~~
-Debye-Huckel fit:
-  Range          =  [100.0, 200.0] A
-  Fitted shift   =  -1.33174551427 kT
-  Bjerrum length =  7.1 A
-  Debye length   =  96.1282683426 A (fitted: True )
-  Charge product =  1.0
-  Radius         =  0.0 A (fitted: False )
+model potential:
+  w(r)/kT = lB * z1 * z2 / r * np.exp(-r/a[0]) + a[1]
+        a = [ 96.12826973  -1.33174551]
 
-Virial coefficient (cubic angstrom):
-  Hard sphere  [    0:    5] =  261.799387799
-  Rest         [    5:  199] =  229907.054727
-  TOTAL        [    0:  199] =  230168.854114
-  Reduced, B2/B2_HS          =  879.180261075
+virial coefficient:
+  B2hs =  261.799387799 A3 ( [0, 5.0] )
+  B2   =  388203.844125 A3 = NaN mlmol/g2  ( [0, 799.5] )
+  B2*  =  1482.82945728
 ~~~~
 
 ![alt text](images/pmffit.png "Fitted potential of mean force")

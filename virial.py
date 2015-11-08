@@ -14,65 +14,6 @@ from scipy.optimize import curve_fit, OptimizeWarning
 from scipy.constants import N_A
 from sys import exit
 
-class PotentialBase(object):
-  def __init__(self):
-    self.popt = 0.0
-    self.pcov = 0.0
-    self.shift = 0.0
-    self.range = []
-
-  def info(self):
-    print self.name+" fit:"
-    print "  Range          = ", self.range, "A"
-    print "  Fitted shift   = ", self.shift, "kT"
-    self.more()
-
-  def fit(self, r, w):
-    self.range = [np.min(r), np.max(r)]
-    self.popt, self.pcov = curve_fit( self.u, r, w, self.guess ) # fit data
-    return self.popt
-
-  def eval(self, rmin, rmax=1e3, dr=0.5):
-    r = np.arange(rmin, rmax, dr)
-    w = self.u(r, *self.popt)
-    return r,w-self.shift
-
-class Zero( PotentialBase ):
-  def __init__(self):
-    self.name="Zero"
-    self.guess=[0]
-  def u(self, r, shift):
-    self.shift=shift
-    return r*0 + shift
-  def more(self): pass
-
-class DebyeHuckelLimiting( PotentialBase ):
-
-  def __init__(self, guess, fitdebye=True, fitradii=False, lB=7.1):
-    self.name = "Debye-Huckel"
-    self.guess = guess
-    self.fitdebye = fitdebye
-    self.fitradii = fitradii
-    self.lB=lB
-
-  def u( self, r, QQ, D, a, shift ):
-    D=fabs(D)
-    QQ = self.guess[0]
-    if self.fitradii:
-      a=fabs(a)
-      if (a==0): a=1e-10
-      QQ = (sinh(a/D) / (a/D))**2 * QQ
-    if self.fitdebye is False:
-      D = self.guess[1]
-    self.shift = shift
-    return self.lB*QQ / r * np.exp(-r/D) + shift 
-
-  def more( self ):
-    print "  Bjerrum length = ", self.lB, "A"
-    print "  Debye length   = ", fabs(self.popt[1]), "A (fitted:", self.fitdebye, ")"
-    print "  Charge product = ", self.popt[0]
-    print "  Radius         = ", fabs(self.popt[2]), "A (fitted:", self.fitradii, ")"
-
 class RadialDistributionFunction:
   def __init__(self, filename):
     self.r, self.g = np.loadtxt(filename, usecols=(0,1), unpack=True)
@@ -111,30 +52,59 @@ if __name__ == "__main__":
   ps.add_argument('-a','--radii', type=float, nargs=2, default=[0,0], metavar=('a1','a2'), help='radii [angstrom]')
   ps.add_argument('-mw', type=float, nargs=2, default=[0,0], metavar=('mw1','mw2'), help='mol. weights [g/mol]')
   ps.add_argument('-lB','--bjerrum', type=float, default=7.1, metavar=('lB'), help='Bjerrum length [angstrom]')
-  ps.add_argument('-D','--debye', type=float, default=1e20, metavar=('D'), help='Debye length [angstrom]')
-  ps.add_argument('-m','--model', default='dh', choices=['dh','zero'], help='Model to fit')
   ps.add_argument('-p', '--plot', action='store_true', help='plot fitted w(r) using matplotlib' )
   ps.add_argument('-so','--shiftonly', action='store_true',
       help='do not replace tail w. model potential' )
-  ps.add_argument('--norm', choices=['none','cylinder', 'sphere'], default='none',
+  ps.add_argument('--norm', choices=['none','2d', '3d'], default='none',
       help='normalize w. volume element')
   ps.add_argument('-r', '--range', type=float, nargs=2, default=[0,0], metavar=('min','max'),
       help='fitting range [angstrom]')
-  ps.add_argument('--fitradii', dest='fitradii', action='store_true', help='fit radius via sinh(ka)/ka')
-  ps.add_argument('--no-fitdebye', dest='fitdebye', action='store_false', help='fit debye length')
+  ps.add_argument('--pot', type=str,help='pair-potential -- either from list or user-defined')
+  ps.add_argument('--guess', type=float, nargs='+', help='initial guess for fitting parameters')
+  ps.add_argument('--potlist', action='store_true', help='show built-in potentials and quit')
   ps.add_argument('infile', type=str, help='two column input file with radial distribution function, g(r)' )
   ps.add_argument('outfile', type=str, help='three column output with manipulated r, w(r), g(r)' )
   args = ps.parse_args()
-  
+
+  # more convenient variable names
+  lB = args.bjerrum
+  a1,a2 = args.radii
+  z1,z2 = args.z
+  mw1,mw2 = args.mw
+
+  # predefined potentials [ w(r)/kT, [guess parameters] ]
+  potentiallist = {
+      'dh'     : [ 'lB * z1 * z2 / r * np.exp(-r/a[0]) + a[1]',  [30., 0] ],
+      'dhsinh' : [ 'lB * z1 * z2 * sinh(a[1]/a[0])**2 / r * np.exp(-r/a[0]) + a[2]',  [30., 10.0, 0] ],
+      'zero'   : [ 'r*0 + a[0]', [0] ]
+      }
+
+  # print predefined potentials and quit
+  if args.potlist==True:
+    print "pre-defined pair-potentials:"
+    for key, val in potentiallist.iteritems():
+      print "%10s = %s" % (key,val[0])
+    exit(0)
+
+  # does the given pair-potential exist?
+  if args.pot in potentiallist.keys():
+    args.guess = potentiallist[args.pot][1]
+    args.pot   = potentiallist[args.pot][0]
+
+  # this is the pair-potential function used for fitting
+  def pot(r, *a):
+    exec 'ret='+args.pot
+    return ret
+
+  # load g(r)
   if not os.path.isfile( args.infile ):
     sys.exit( "Error: File "+args.infile+" does not exist." )
-
   rdf = RadialDistributionFunction( args.infile )
 
   # normalize with volume element?
-  if args.norm=='cylinder':
+  if args.norm=='2d':
     rdf.normalizeVolume(2)
-  if args.norm=='sphere':
+  if args.norm=='3d':
     rdf.normalizeVolume(3)
 
   # cut out range to fit
@@ -142,31 +112,29 @@ if __name__ == "__main__":
     args.range = min(rdf.r), max(rdf.r)
   r,g = rdf.slice( *args.range )
 
-  # set up chosen fitting model
-  if args.model=='dh':
-    a = (args.radii[0]+args.radii[1]) / 2.0
-    guess = [ args.z[0]*args.z[1], args.debye, a, 0.0 ]
-    model = DebyeHuckelLimiting(
-        fitradii=args.fitradii, fitdebye=args.fitdebye, guess=guess, lB=args.bjerrum )
-  if args.model=='zero':
-    model = Zero()
-
-  # fit and show info
-  model.fit( r, -np.log(g) )
-  model.info()
+  # fit pair-potential to data
+  a = curve_fit( pot, r, -np.log(g), args.guess )[0] # fit data
+  print "model potential:"
+  print "  w(r)/kT =", args.pot
+  print "        a =", a
+  shift = a[-1]  # last element is always the shift
 
   # merge fitted data and calculated tail if needed
   if args.shiftonly is True:
-    r, w = rdf.r, rdf.w - model.shift
+    r, w = rdf.r, rdf.w - shift
   else:
-    m = ( rdf.r<model.range[0] )                                     # points below rmin 
-    rd,wd = rdf.r[m], rdf.w[m]-model.shift                           # w(r) from data points
-    rm,wm = model.eval( rmin=model.range[0], rmax=2*model.range[1] ) # w(r) from model potential
-    r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm])
+    m = ( rdf.r<=args.range[0] )      # points below rmin 
+    rd = rdf.r[m]
+    wd = rdf.w[m]-shift              # w(r) from data points
 
+    rm = np.arange( args.range[0], 4*args.range[1], rd[1]-rd[0] )
+    wm = pot(rm, *a) - shift
+
+    r, w = np.concatenate([rd,rm]), np.concatenate([wd,wm]) # final w(r)
+    
   # virial coefficient
   B2 = VirialCoefficient( r, w, args.mw )
-  print
+  print '\nvirial coefficient:'
   print '  B2hs = ', B2['hs'], 'A3 (', B2['hsrange'], ')'
   print '  B2   = ', B2['tot'], 'A3 =', B2.get('mlmol/g2', 'NaN'), 'mlmol/g2', ' (', B2['range'], ')'
   print '  B2*  = ', B2['reduced']
@@ -176,7 +144,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     plt.xlabel('$r$', fontsize=24)
     plt.ylabel('$\\beta w(r) = -\\ln g(r)$', fontsize=24)
-    plt.plot( rdf.r, rdf.w-model.shift, 'r.' )
+    plt.plot( rdf.r, rdf.w-shift, 'r.' )
     plt.plot( r, w, 'g-' )
     plt.show()
 
