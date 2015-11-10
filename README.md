@@ -29,19 +29,19 @@ optional arguments:
   -p, --plot            plot fitted w(r) using matplotlib (default: False)
   -so, --shiftonly      do not replace tail w. model potential (default:
                         False)
-  --norm {none,2d,3d}   normalize w. volume element (default: none)
+  --norm {no,2d,3d}     normalize w. volume element (default: no)
   -r min max, --range min max
                         fitting range [angstrom] (default: [0, 0])
   --pot POT             pair-potential -- either from list or user-defined
                         (default: None)
   --guess GUESS [GUESS ...]
                         initial guess for fitting parameters (default: None)
-  --potlist             show built-in potentials and quit (default: False)
+  --show                show built-in potentials and quit (default: False)
 ~~~~
 
 ## Requirements
 
-`numpy`, `scipy`, `matplotlib`.
+`python2.7` with `numpy`, `scipy`, and `matplotlib`.
 
 ## Example
 
@@ -65,12 +65,21 @@ The output will look something like this,
 model potential:
   w(r)/kT = lB * z1 * z2 / r * np.exp(-r/a[0]) + a[1]
         a = [ 96.12826973  -1.33174551]
+       Mw = [0, 0] g/mol
+    radii = [0, 0] angstrom
+  charges = [1.0, 1.0]
 
 virial coefficient:
-  B2hs =  261.799387799 A3 ( [0, 5.0] )
-  B2   =  388203.844125 A3 = NaN mlmol/g2  ( [0, 799.5] )
-  B2*  =  1482.82945728
+  B2hs    =  261.799387799 A3 ( [0, 5.0] )
+  B2      =  388203.844125 A3 = NaN mlmol/g2  ( [0, 799.5] )
+  B2/B2hs =  1482.82945728
 ~~~~
+
+where `a[0]` is the fitted Debye length and `a[1]` is the shift of the PMF (or scaling of `g(r)`)
+required to fit the loaded data to the model potential.
+**Important**:
+The shift is *always* taken as the last
+value in `a` and subtrated from the final `w(r)` saved to disk or plotted using `--plot`:
 
 ![alt text](images/pmffit.png "Fitted potential of mean force")
 
